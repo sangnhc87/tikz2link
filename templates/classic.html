@@ -1,3 +1,4 @@
+<!-- templates/index.html (Phiên bản Classic hoàn chỉnh) -->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -135,7 +136,10 @@
 </head>
 <body>
     <div class="container">
-        <h1>TikZ to PNG Converter</h1>
+        <!-- Thêm link điều hướng ở đây -->
+        <a href="{{ url_for('pro_uploader') }}" style="float: right; text-decoration: none;">Chuyển sang Giao diện Pro →</a>
+        
+        <h1>TikZ to PNG Converter (Classic)</h1>
         
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -147,7 +151,8 @@
 
         <!-- Lựa chọn 1: Tải file .tex lên -->
         <h2>1. Tải lên tệp LaTeX (.tex)</h2>
-        <form id="file_upload_form" method="POST" enctype="multipart/form-data" action="{{ url_for('upload_file') }}">
+        <!-- SỬA LẠI ACTION Ở ĐÂY -->
+        <form id="file_upload_form" method="POST" enctype="multipart/form-data" action="{{ url_for('classic_upload_file') }}">
             <label class="file-input-label" for="file_upload">
                 <span>Nhấn để chọn hoặc kéo thả tệp vào đây</span>
             </label>
@@ -160,14 +165,16 @@
 
         <!-- Lựa chọn 2: Dán code trực tiếp -->
         <h2>2. Dán trực tiếp một đoạn code TikZ</h2>
-        <form method="POST" action="{{ url_for('convert_code') }}">
+        <!-- SỬA LẠI ACTION Ở ĐÂY -->
+        <form method="POST" action="{{ url_for('classic_convert_code') }}">
             <textarea name="tikz_code" placeholder="\begin{tikzpicture}
     \draw[blue, thick] (0,0) circle (1cm);
 \end{tikzpicture}">{% if request.form.tikz_code %}{{ request.form.tikz_code }}{% endif %}</textarea>
-            <button type="submit">Chuyển đổi đoạn code & Tải về PNG</button>
+            <button type="submit">Chuyển đổi & Tải về PNG</button>
         </form>
     </div>
 
+    <!-- Giữ nguyên script của bạn -->
     <script>
         const fileInput = document.getElementById('file_upload');
         const fileNameDisplay = document.getElementById('file-name');
@@ -180,6 +187,5 @@
             }
         });
     </script>
-
 </body>
 </html>
