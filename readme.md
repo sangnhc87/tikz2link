@@ -1,1 +1,4 @@
-# flyctl deploy
+flyctl deploy
+
+
+flyctl logs
