@@ -1,0 +1,1 @@
+mục tiêu lấy link từ tikz
