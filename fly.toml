@@ -6,7 +6,11 @@
 app = 'tikz4web'
 primary_region = 'sin'
 
+# === SỬA KHỐI NÀY ===
 [build]
+  # Chỉ định rõ ràng file Dockerfile để sử dụng
+  dockerfile = "Dockerfile"
+# =====================
 
 [http_service]
   internal_port = 8080

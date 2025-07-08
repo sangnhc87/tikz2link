@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Trình Soạn Thảo LaTeX Live</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; }
+        #main-container { display: flex; height: 100vh; }
+        #editor-container { flex: 1; display: flex; flex-direction: column; }
+        #preview-container { flex: 1; border-left: 2px solid #ccc; background-color: #525659; }
+        #monaco-editor { width: 100%; height: 100%; }
+        #control-bar { padding: 8px; background-color: #333; display: flex; align-items: center; }
+        #compile-button { padding: 8px 16px; font-size: 15px; cursor: pointer; background-color: #007ACC; color: white; border: none; border-radius: 4px; }
+        #compile-button:disabled { background-color: #555; cursor: not-allowed; }
+        #status-message { margin-left: 15px; color: #fff; font-size: 14px; }
+        #pdf-preview { width: 100%; height: 100%; border: none; }
+        .error-log { white-space: pre-wrap; font-family: monospace; color: #ffcccc; background-color: #2b2b2b; padding: 15px; height: 100%; overflow-y: auto; }
+    </style>
+    <!-- Thư viện SweetAlert2 để hiển thị thông báo lỗi đẹp hơn -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+</head>
+<body>
+    <div id="main-container">
+        <div id="editor-container">
+            <div id="control-bar">
+                <button id="compile-button">Biên Dịch PDF (Ctrl+S)</button>
+                <span id="status-message">Sẵn sàng.</span>
+            </div>
+            <div id="monaco-editor"></div>
+        </div>
+        <div id="preview-container">
+            <!-- Khung preview sẽ được quản lý bởi JavaScript -->
+        </div>
+    </div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.34.0/min/vs/loader.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    let editor;
+    let sessionId = null; // Biến để lưu session_id
+
+    // === HÀM KHỞI TẠO PHIÊN LÀM VIỆC ===
+    async function initSession() {
+        try {
+            const response = await fetch('/api/init-session', { method: 'POST' });
+            const data = await response.json();
+            if (data.success && data.session_id) {
+                sessionId = data.session_id;
+                console.log("Đã khởi tạo phiên làm việc cho latex-editor:", sessionId);
+            } else {
+                throw new Error('Không nhận được session_id hợp lệ.');
+            }
+        } catch (error) {
+            console.error("Lỗi khởi tạo phiên:", error);
+            Swal.fire('Lỗi Nghiêm Trọng', 'Không thể bắt đầu phiên làm việc. Vui lòng tải lại trang.', 'error');
+        }
+    }
+    
+    // --- Lấy các element DOM ---
+    const compileBtn = document.getElementById('compile-button');
+    const statusMsg = document.getElementById('status-message');
+    const previewContainer = document.getElementById('preview-container');
+
+    // --- Khởi tạo Monaco Editor ---
+    require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.34.0/min/vs' }});
+    require(['vs/editor/editor.main'], function() {
+        editor = monaco.editor.create(document.getElementById('monaco-editor'), {
+            value: `\\documentclass[a4paper,12pt]{article}
+\\usepackage[utf8]{vietnam}
+\\usepackage{amsmath}
+\\usepackage{graphicx}
+\\usepackage{tikz}
+
+\\title{Tài liệu mẫu}
+\\author{Người dùng}
+\\date{\\today}
+
+\\begin{document}
+\\maketitle
+
+\\section{Giới thiệu}
+Đây là một tài liệu LaTeX mẫu.
+
+Công thức toán: $E = mc^2$.
+
+\\begin{figure}[h!]
+\\centering
+\\begin{tikzpicture}
+    \\draw[blue, ->] (0,0) -- (3,2) node[right]{Vector};
+\\end{tikzpicture}
+\\caption{Một hình vẽ TikZ.}
+\\end{figure}
+
+\\end{document}`,
+            language: 'latex',
+            theme: 'vs-dark',
+            automaticLayout: true
+        });
+
+        // Thêm phím tắt Ctrl+S để biên dịch
+        editor.addAction({
+            id: 'compile-on-save',
+            label: 'Compile PDF',
+            keybindings: [ monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS ],
+            run: () => compileBtn.click()
+        });
+    });
+
+    // --- Hàm biên dịch (ĐÃ NÂNG CẤP) ---
+    async function compileLatex() {
+        if (!editor) return;
+        // Kiểm tra xem đã có session chưa
+        if (!sessionId) {
+            Swal.fire('Lỗi Phiên', 'Chưa có phiên làm việc với server. Vui lòng tải lại trang.', 'error');
+            return;
+        }
+
+        statusMsg.textContent = 'Đang biên dịch...';
+        compileBtn.disabled = true;
+        
+        // Tạo body request với cả latex_code và session_id
+        const body = new URLSearchParams();
+        body.append('latex_code', editor.getValue());
+        body.append('session_id', sessionId);
+
+        try {
+            const response = await fetch('/api/compile-latex-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body
+            });
+
+            if (response.ok) {
+                const pdfBlob = await response.blob();
+                const pdfUrl = URL.createObjectURL(pdfBlob);
+                // Hiển thị lại iframe
+                previewContainer.innerHTML = '<iframe id="pdf-preview" title="Xem trước PDF"></iframe>';
+                document.getElementById('pdf-preview').src = pdfUrl;
+                statusMsg.textContent = 'Biên dịch thành công!';
+            } else {
+                const errorData = await response.json();
+                statusMsg.textContent = 'Lỗi biên dịch!';
+                // Hiển thị log lỗi
+                previewContainer.innerHTML = `<div class="error-log">${escapeHtml(errorData.error)}</div>`;
+            }
+        } catch (err) {
+            statusMsg.textContent = 'Lỗi kết nối server.';
+            previewContainer.innerHTML = `<div class="error-log">Lỗi kết nối đến server. Vui lòng kiểm tra lại.</div>`;
+            console.error('Fetch Error:', err);
+        } finally {
+            compileBtn.disabled = false;
+        }
+    }
+
+    // --- Gắn sự kiện cho nút biên dịch ---
+    compileBtn.addEventListener('click', compileLatex);
+    
+    // Hàm escape HTML để hiển thị log lỗi an toàn
+    function escapeHtml(unsafe) {
+        return unsafe
+             .replace(/&/g, "&")
+             .replace(/</g, "<")
+             .replace(/>/g, ">")
+             .replace(/"/g, "\"")
+             .replace(/'/g, "'");
+    }
+
+    // --- Khởi chạy mọi thứ ---
+    await initSession();
+});
+</script>
+</body>
+</html>

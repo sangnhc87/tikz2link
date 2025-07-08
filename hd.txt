@@ -1,1 +1,5 @@
 mục tiêu lấy link từ tikz
+
+
+
+gcloud config set project tikz4web

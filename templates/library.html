@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TikZ Pro Uploader</title>
+    <title>Thư viện ảnh TikZ</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -16,10 +16,6 @@
             --text-color: #111827;
             --text-light: #6B7280;
             --success-color: #10B981;
-            --success-light: #D1FAE5;
-            --warning-color: #F59E0B;
-            --danger-color: #EF4444;
-            --danger-light: #FEE2E2;
             --white: #FFFFFF;
             --shadow-color: rgba(79, 70, 229, 0.1);
         }
@@ -48,13 +44,19 @@
             border: 1px solid var(--border-color);
         }
 
-        .header {
-            text-align: center;
-            margin-bottom: 2rem;
+        .library-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 2.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.5rem;
         }
 
-        h1 {
-            background: linear-gradient(45deg, var(--primary-color), #7C3AED);
+        .library-header h1 {
+            background: linear-gradient(45deg, #10B981, #2DD4BF);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             font-size: 2.5rem;
@@ -62,24 +64,12 @@
             margin: 0 0 0.5rem 0;
         }
         
-        .header p {
+        .library-header p {
             color: var(--text-light);
             font-size: 1.125rem;
             margin: 0;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
         }
-        
-        .header-buttons {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-            margin-top: 2rem;
-            margin-bottom: 3rem;
-        }
-        
+
         .header-btn {
             display: inline-flex;
             align-items: center;
@@ -108,56 +98,6 @@
         }
         .header-btn svg { width: 1.25rem; height: 1.25rem; }
 
-        .upload-area {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 1rem;
-            border: 3px dashed var(--border-color);
-            border-radius: 16px;
-            padding: 3rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            overflow: hidden;
-        }
-        .upload-area:hover, .upload-area.dragover {
-            border-color: var(--primary-color);
-            background-color: #F9F9FF;
-            transform: scale(1.02);
-        }
-        .upload-area.processing {
-            cursor: not-allowed;
-            border-style: solid;
-            background-color: var(--secondary-color);
-        }
-        .upload-area .icon { color: var(--primary-color); transition: transform 0.3s ease; }
-        .upload-area:hover .icon { transform: translateY(-5px) scale(1.1); }
-        .upload-area p { margin: 0; font-size: 1.1rem; color: var(--text-light); }
-        .upload-area span { font-weight: 600; color: var(--primary-color); }
-        #file-input { display: none; }
-
-        .progress-bar-container {
-            width: 100%;
-            height: 8px;
-            background-color: var(--border-color);
-            border-radius: 4px;
-            margin-top: 1rem;
-            overflow: hidden;
-            display: none;
-        }
-        .progress-bar {
-            width: 0;
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary-light), var(--primary-color));
-            border-radius: 4px;
-            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        #status { text-align: center; margin: 1.5rem 0; font-weight: 500; font-size: 1rem; min-height: 24px; transition: all 0.3s; }
-
         #results-container {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -178,7 +118,7 @@
              box-shadow: 0 8px 24px rgba(0,0,0,0.08);
         }
         .result-card img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: contain; border-radius: 8px; margin-bottom: 1rem; background-color: var(--secondary-color); }
-        .result-card .filename { text-align: center; margin: 0.5rem 0; font-weight: 500; color: var(--text-color); }
+        .result-card .filename { text-align: center; margin: 0.5rem 0; font-weight: 500; color: var(--text-color); word-break: break-all; }
         .transform-input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem; font-family: 'SF Mono', 'Courier New', monospace; font-size: 0.9rem; margin-bottom: 1rem; transition: border-color 0.2s; }
         .transform-input:focus { border-color: var(--primary-color); outline: none; box-shadow: 0 0 0 2px var(--primary-light); }
         .result-card textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem; font-family: 'SF Mono', 'Courier New', monospace; font-size: 0.85rem; resize: none; margin-bottom: 1rem; background-color: #F9FAFB; }
@@ -195,35 +135,17 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>TikZ Pro Uploader</h1>
-            <p>Tải lên file .tex, hệ thống sẽ tự động chuyển đổi và tạo link ảnh qua Cloudinary.</p>
-            <div class="header-buttons">
-                <a href="{{ url_for('classic_index') }}" class="header-btn">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
-                    <span>Giao diện Classic (ZIP)</span>
-                </a>
-                <!-- NÚT MỚI ĐI ĐẾN THƯ VIỆN -->
-    <a href="{{ url_for('library') }}" class="header-btn">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" /></svg>
-        <span>Thư viện ảnh</span>
-    </a>
+        <div class="library-header">
+            <div>
+                <h1>Thư viện ảnh TikZ</h1>
+                <p>Tất cả các hình ảnh đã được tạo và lưu trữ trên Cloudinary.</p>
             </div>
+            <a href="{{ url_for('pro_uploader') }}" class="header-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>
+                <span>Quay lại trang Upload</span>
+            </a>
         </div>
-
-        <label for="file-input" class="upload-area" id="upload-area">
-            <div class="icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25z" /></svg>
-            </div>
-            <p>Kéo và thả file .tex, hoặc <span>nhấp để chọn file</span>.</p>
-            <div class="progress-bar-container" id="progress-container">
-                <div class="progress-bar" id="progress-bar"></div>
-            </div>
-        </label>
-        <input type="file" id="file-input" accept=".tex" multiple="false">
-
-        <p id="status"></p>
-
+        
         <div id="bulk-action-container" style="display: none; margin-bottom: 1.5rem; text-align: center;">
             <button id="copy-all-btn" class="header-btn">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" /></svg>
@@ -231,133 +153,25 @@
             </button>
         </div>
 
-        <div id="results-container"></div>
+        <div id="results-container">
+            {% if not images %}
+                <p style="text-align: center; color: var(--text-light); grid-column: 1 / -1;">Thư viện trống hoặc có lỗi khi tải dữ liệu. Hãy thử upload một vài ảnh ở trang chính!</p>
+            {% endif %}
+        </div>
     </div>
     
     <script>
+        // === DỮ LIỆU ẢNH TỪ SERVER ===
+        const imagesData = {{ images|tojson }};
+        
         // === CÁC BIẾN DOM ===
-        const fileInput = document.getElementById('file-input');
-        const uploadArea = document.getElementById('upload-area');
-        const statusMsg = document.getElementById('status');
         const resultsContainer = document.getElementById('results-container');
         const bulkActionContainer = document.getElementById('bulk-action-container');
         const copyAllBtn = document.getElementById('copy-all-btn');
-        const progressContainer = document.getElementById('progress-container');
-        const progressBar = document.getElementById('progress-bar');
 
         // === ICON SVG CHO NÚT BẤM ===
         const copyIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" /></svg><span>Chép thẻ IMG</span>`;
         const copiedIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Đã chép!</span>`;
-
-        // === CÁC HÀM XỬ LÝ SỰ KIỆN ===
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            uploadArea.addEventListener(eventName, preventDefaults, false);
-        });
-
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            uploadArea.addEventListener(eventName, () => {
-                if (!uploadArea.classList.contains('processing')) {
-                    uploadArea.classList.add('dragover');
-                }
-            }, false);
-        });
-        
-        ['dragleave', 'drop'].forEach(eventName => {
-            uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
-        });
-        
-        uploadArea.addEventListener('click', () => {
-            if (!uploadArea.classList.contains('processing')) {
-                fileInput.click();
-            }
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            if (!uploadArea.classList.contains('processing')) {
-                handleFile(e.dataTransfer.files[0]);
-            }
-        });
-
-        fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
-        
-        // === HÀM XỬ LÝ CHÍNH ===
-        async function handleFile(file) {
-            if (!file || !file.name.endsWith('.tex')) {
-                statusMsg.textContent = "Lỗi: Vui lòng chỉ chọn file .tex";
-                statusMsg.style.color = 'var(--danger-color)';
-                return;
-            }
-
-            // Vô hiệu hóa vùng upload và reset giao diện
-            uploadArea.classList.add('processing');
-            resultsContainer.innerHTML = '';
-            bulkActionContainer.style.display = 'none';
-            statusMsg.textContent = `Chuẩn bị xử lý "${file.name}"...`;
-            statusMsg.style.color = 'var(--text-light)';
-            
-            // Hiển thị và reset progress bar
-            progressContainer.style.display = 'block';
-            progressBar.style.width = '0%';
-            progressContainer.style.backgroundColor = '';
-            progressBar.style.backgroundColor = '';
-            
-            // Hiệu ứng thanh tiến trình giả lập
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += Math.random() * 5;
-                if (progress > 95) progress = 95;
-                progressBar.style.width = progress + '%';
-            }, 300);
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                const response = await fetch("{{ url_for('process_tex_file') }}", {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                clearInterval(interval);
-                progressBar.style.width = '100%';
-
-                const data = await response.json();
-
-                if (!response.ok || !data.success) {
-                    throw new Error(data.error || 'Lỗi không xác định từ server.');
-                }
-                
-                statusMsg.textContent = `Hoàn tất! Tìm thấy và xử lý ${data.images.length} hình ảnh.`;
-                statusMsg.style.color = 'var(--success-color)';
-                
-                data.images.forEach(image => {
-                    createImageCard(image.secure_url, image.original_filename);
-                });
-
-                if (data.images.length > 0) {
-                    bulkActionContainer.style.display = 'block';
-                }
-
-            } catch (error) {
-                clearInterval(interval);
-                progressBar.style.backgroundColor = 'var(--danger-color)';
-                statusMsg.textContent = `Lỗi: ${error.message}`;
-                statusMsg.style.color = 'var(--danger-color)';
-                console.error('Lỗi khi xử lý tệp:', error);
-            } finally {
-                uploadArea.classList.remove('processing');
-                fileInput.value = '';
-                setTimeout(() => {
-                    progressContainer.style.display = 'none';
-                    progressBar.style.width = '0%';
-                }, 2000);
-            }
-        }
 
         // === HÀM TẠO CARD KẾT QUẢ ===
         function createImageCard(originalUrl, originalFilename = 'Uploaded Image') {
@@ -425,6 +239,18 @@
                 console.error('Không thể sao chép tất cả: ', err);
                 alert('Không thể sao chép. Vui lòng kiểm tra quyền truy cập clipboard của trình duyệt.');
             });
+        });
+
+        // === HIỂN THỊ CÁC ẢNH KHI TRANG TẢI XONG ===
+        document.addEventListener('DOMContentLoaded', () => {
+            if (imagesData && imagesData.length > 0) {
+                imagesData.forEach(image => {
+                    // Lấy tên file từ public_id
+                    const filename = image.public_id.split('/').pop() + '.' + image.format;
+                    createImageCard(image.secure_url, filename);
+                });
+                bulkActionContainer.style.display = 'block';
+            }
         });
     </script>
 </body>

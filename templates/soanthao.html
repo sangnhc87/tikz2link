@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <title>Soạn Thảo LaTeX IDE (Final)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style_soanthao.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styleV3.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styleV4.css') }}">
+</head>
+<body>
+
+<!-- ================= HEADER TOOLBAR ================= -->
+<div class="toolbar">
+    <div class="toolbar-group">
+        <button id="snippet-manager-btn" title="Kho Snippet"><i class="fas fa-book-open"></i> Snippet</button>
+        <button id="code-tools-btn" title="Công cụ xử lý Code"><i class="fas fa-magic"></i> Công cụ</button>
+        <!-- === NÚT TẢI ẢNH VÀ INPUT ẨN === -->
+        <button id="upload-image-btn" title="Tải ảnh lên"><i class="fas fa-image"></i> Tải ảnh</button>
+        <input type="file" id="image-uploader" accept="image/*" style="display: none;">
+        
+        <button id="open-gan-id-btn" title="Gán ID cho câu hỏi"><i class="fas fa-tags"></i> Gán ID</button>
+        <button id="qr-tool-btn" title="Tạo QR Code cho đáp án"><i class="fas fa-qrcode"></i> QR Code</button>
+    </div>
+    <div class="toolbar-group" style="margin-left: auto;">
+        <button id="compile-btn" title="Biên dịch (Ctrl+S)"><i class="fas fa-play"></i> Biên dịch</button>
+    </div>
+</div>
+
+<!-- ================= MAIN CONTENT ================= -->
+<div class="main-container">
+    <div class="editor-pane"><div id="monaco-editor"></div></div>
+    <div class="resizer" id="resizer"></div>
+    <div class="pdf-pane">
+        <iframe id="pdf-preview" title="Xem trước PDF"></iframe>
+        <div id="error-log-container" class="error-log" style="display: none;"></div>
+    </div>
+</div>
+
+<!-- ================= FOOTER PANEL ================= -->
+<div class="footer-panel" id="footer-panel">
+    <div class="footer-handle" id="footer-handle">
+        <span><i class="fas fa-tools"></i> Công cụ chèn nhanh</span>
+        <button id="expand-footer-btn" title="Mở rộng/Thu gọn"><i class="fas fa-chevron-up"></i></button>
+    </div>
+    <div class="footer-content" id="footer-content">
+        <div class="helper-group">
+            <span class="helper-group-title">Môi trường:</span>
+            <button class="helper-btn" data-insert="\begin{itemize}\n\t\item \n\end{itemize}">Itemize</button>
+            <button class="helper-btn" data-insert="\begin{enumerate}\n\t\item \n\end{enumerate}">Enumerate</button>
+            <button class="helper-btn" data-insert="\begin{figure}[h!]\n\t\centering\n\t\caption{}\n\t\label{fig:}\n\end{figure}">Figure</button>
+            <button class="helper-btn" data-insert="\begin{tikzpicture}\n\t\n\end{tikzpicture}">TikZ</button>
+        </div>
+        <div class="helper-group">
+            <span class="helper-group-title">Toán học:</span>
+            <button class="helper-btn" data-insert="\dfrac{}{}">dfrac</button>
+            <button class="helper-btn" data-insert="\sqrt{}">sqrt</button>
+            <button class="helper-btn" data-insert="\sum\limits_{}^{}">sum</button>
+            <button class="helper-btn" data-insert="\int\limits_{}^{}">int</button>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL GÁN ID ================= -->
+<div class="modal" id="assignIdModal">
+    <!-- Nội dung modal giữ nguyên -->
+</div>
+
+<!-- ================= SCRIPT SECTION ================= -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+<script src="{{ url_for('static', filename='ganID.js') }}"></script>
+<script src="{{ url_for('static', filename='snippets.js') }}"></script>
+<script src="{{ url_for('static', filename='code_tools.js') }}"></script>
+<script src="{{ url_for('static', filename='qr_tool.js') }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.34.0/min/vs/loader.js"></script>
+
+<!-- === SCRIPT KHỞI CHẠY CHÍNH (ĐÃ HOÀN CHỈNH) === -->
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    // =================================================================
+    // ===                 KHAI BÁO BIẾN TOÀN CỤC                   ===
+    // =================================================================
+    let editor;
+    let sessionId = null; // Sẽ được lấy từ server khi trang tải
+
+    // =================================================================
+    // ===             HÀM KHỞI TẠO PHIÊN LÀM VIỆC                ===
+    // =================================================================
+    async function initSession() {
+        try {
+            const response = await fetch('/api/init-session', { method: 'POST' });
+            if (!response.ok) throw new Error('Server response was not ok.');
+            const data = await response.json();
+            if (data.success && data.session_id) {
+                sessionId = data.session_id;
+                console.log("Đã khởi tạo phiên làm việc mới:", sessionId);
+            } else {
+                throw new Error(data.error || 'Không nhận được session_id hợp lệ.');
+            }
+        } catch (error) {
+            console.error("Lỗi khởi tạo phiên:", error);
+            Swal.fire('Lỗi Nghiêm Trọng', 'Không thể bắt đầu phiên làm việc với server. Vui lòng tải lại trang.', 'error');
+        }
+    }
+
+    // =================================================================
+    // ===             LẤY CÁC ELEMENT DOM CHÍNH                  ===
+    // =================================================================
+    const compileBtn = document.getElementById('compile-btn');
+    const pdfPreview = document.getElementById('pdf-preview');
+    const errorLogContainer = document.getElementById('error-log-container');
+    const resizer = document.getElementById('resizer');
+    const editorPane = document.querySelector('.editor-pane');
+
+    // Các nút công cụ
+    const snippetBtn = document.getElementById('snippet-manager-btn');
+    const codeToolsBtn = document.getElementById('code-tools-btn');
+    const qrToolBtn = document.getElementById('qr-tool-btn');
+    const uploadImageBtn = document.getElementById('upload-image-btn');
+    const imageUploader = document.getElementById('image-uploader');
+
+    // =================================================================
+    // ===                 KHỞI TẠO MONACO EDITOR                  ===
+    // =================================================================
+    function initializeEditor() {
+        require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.34.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            editor = monaco.editor.create(document.getElementById('monaco-editor'), {
+                value: `\\documentclass{article}
+\\usepackage[top=1.5cm, bottom=1.5cm, left=2cm, right=1.5cm]{geometry}
+\\usepackage[hidelinks,unicode]{hyperref}
+\\usepackage[loigiai,color]{ex_test} 
+
+\\usepackage{lastpage} 
+\\usepackage{fancyhdr} 
+\\usepackage{tikz}
+\\usepackage{xcolor}
+\\usepackage{amsmath}
+\\usepackage{graphicx}
+
+\\def\\vec{\\overrightarrow}
+\\newcommand{\\hoac}[1]{\\left[\\begin{aligned}#1\\end{aligned}\\right.}
+\\newcommand{\\heva}[1]{\\left\\{\\begin{aligned}#1\\end{aligned}\\right.}
+\\newcommand{\\hetde}{\\centerline{\\rule[0.5ex]{2cm}{1pt} HẾT \\rule[0.5ex]{2cm}{1pt}}}
+
+\\newcommand{\\tentruong}{THPT Nguyễn Hữu Cảnh}
+\\newcommand{\\tengv}{GV Nguyễn Văn Sang}
+\\newcommand{\\tenkythi}{Ôn Kiểm Tra GHKII 2024}
+\\newcommand{\\tenmonthi}{Môn: Toán - Khối 12}
+\\newcommand{\\thoigian}{90}
+\\newcommand{\\made}{101}
+
+\\newcommand{\\tieude}[3]{
+	\\noindent
+	% Trái
+	\\begin{minipage}[b]{7cm}
+		\\centerline{\\textbf{\\fontsize{13}{0}\\selectfont \\tentruong}}
+		\\centerline{\\textbf{\\fontsize{13}{0}\\selectfont \\tengv}}
+		\\centerline{(\\textit{Đề thi có #1\\ trang})}
+		\\centerline{\\textit{ }}
+	\\end{minipage}\\hspace{1.5cm}
+	% Phải
+	\\begin{minipage}[b]{9cm}
+		\\centerline{\\textbf{\\fontsize{13}{0}\\selectfont \\tenkythi}}
+		\\centerline{\\textbf{\\fontsize{13}{0}\\selectfont \\tenmonthi}}
+		\\centerline{\\textit{\\fontsize{12}{0}\\selectfont Thời gian làm bài \\thoigian \\ phút }}
+		% Đã sửa lỗi Overfull \\hbox bằng cách ngắt dòng
+		\\centerline{\\textit{\\fontsize{12}{0}\\selectfont (Đề có 11 câu trắc nghiệm, 5 câu đúng sai, 6 câu điền đáp án)}}
+	\\end{minipage}
+\\vspace{0.5em}
+
+	\\begin{minipage}[b]{13cm}
+		\\vspace*{.75cm}
+		\\textbf{Họ và tên thí sinh: }{\\tiny\\dotfill}\\\\
+		\\textbf{Số Báo Danh: }{\\tiny\\dotfill}
+	\\end{minipage}
+	\\begin{minipage}[b]{8cm}
+		\\hspace*{1cm}\\fbox{\\bf Mã đề thi #3}
+	\\end{minipage}
+}
+% Định nghĩa lại chantrang để thiết lập footer cho fancyhdr
+\\newcommand{\\chantrang}[2]{
+    \\fancyhf{} % Xóa tất cả các header và footer mặc định
+    \\rfoot{Trang \\thepage/#1 $-$ Mã đề #2} % Đặt nội dung vào chân trang bên phải
+    \\lfoot{} % Để trống chân trang bên trái
+    \\cfoot{} % Để trống chân trang ở giữa
+}
+\\renewcommand{\\headrulewidth}{0pt}
+\\newcommand{\\caulc}{
+	\\begin{flushleft}
+{\\color{red}\\sffamily\\bfseries Phần I. Câu hỏi trắc nghiệm nhiều phương án lựa chọn}\\\\
+\\textit{Thí sinh trả lời từ câu 1 đến câu 12. Mỗi câu hỏi thí sinh chỉ chọn một phương án.}
+	\\end{flushleft}
+\\setcounter{ex}{0}
+
+
+	\\setcounter{ex}{0}
+}
+\\newcommand{\\cauds}{
+	\\begin{flushleft}
+{\\color{red}\\sffamily\\bfseries Phần II. Câu hỏi trắc nghiệm đúng sai}\\\\
+\\textit{Thí sinh trả lời từ câu 1 đến câu 4. Trong mỗi ý a), b), c), d) ở mỗi câu thí sinh chọn đúng hoặc sai.} 
+	\\end{flushleft}
+	\\setcounter{ex}{0}
+}
+\\newcommand{\\caukq}{
+	\\begin{flushleft}
+{\\color{red}\\sffamily\\bfseries Phần III. Câu hỏi trắc nghiệm trả lời ngắn}\\\\
+\\textit{Thí sinh trả lời từ câu 1 đến câu 6.} 	\\end{flushleft}
+	\\setcounter{ex}{0}
+} 
+\\newif\\ifhienloigiai
+\\hienloigiaitrue
+\\newcommand{\\anloigiai}{\\hienloigiaifalse}
+\\newcommand{\\hienloigiai}{\\hienloigiaitrue}
+\\makeatletter 
+\\patchcmd{\\do@onlysolution}
+  {\\par\\noindent\\textbf{\\loigiaiEX}} 
+  {\\ifhienloigiai\\par\\noindent\\textbf{\\loigiaiEX}} 
+  { 
+    \\typeout{SUCCESS: Da va lenh \\string\\do@onlysolution de an/hien loi giai.}
+  }
+  { 
+    \\typeout{ERROR: Khong the va lenh \\string\\do@onlysolution.}
+  }
+
+\\apptocmd{\\do@onlysolution} 
+  {\\fi} 
+  { 
+    \\typeout{SUCCESS: Da them \\string\\fi vao cuoi \\string\\do@onlysolution.}
+  }
+  { 
+    \\typeout{ERROR: Khong the them \\string\\fi vao cuoi \\string\\do@onlysolution.}
+  }
+\\makeatother
+\\begin{document}
+\\pagestyle{fancy} 
+\\anloigiai
+\\tieude{\\pageref{LastPage}}{0}{\\made} 
+\\chantrang{\\pageref{LastPage}}{\\made}
+
+% VÍ DỤ CHÈN HÌNH TẢI LÊN
+% Đảm bảo tên file hình ảnh ở đây khớp với tên file bạn tải lên
+\\begin{figure}[h!]
+   \\centering
+   \\includegraphics[width=0.6\\textwidth]{your_uploaded_image.png} % <-- Thay bằng tên file bạn tải lên
+   \\caption{Hình ảnh tải lên.}
+   \\label{fig:uploaded}
+\\end{figure}
+
+\\caulc
+\\cauds
+\\caukq
+\\begin{ex}
+    Biết hàm số $f(x)=\\dfrac{4x^2 + 6x + 4}{(x + 7)(x + 10)}$ có nguyên hàm $F(x)=mx + n\\ln|x + 7| + p\\ln|x + 10| + C$. Tính giá trị $m + n + p$, làm tròn đến phần nguyên.
+    \\shortans[oly]{$-58$}
+    \\loigiai{
+    Ta có:
+    \\[
+    \\int \\dfrac{4x^2 + 6x + 4}{(x + 7)(x + 10)} \\, dx = 4 x + \\frac{158}{3} \\ln|x + 7| - \\frac{344}{3} \\ln|x + 10| + C
+    \\]
+    Đặt:
+    \\[
+    \\dfrac{4x^2 + 6x + 4}{(x + 7)(x + 10)} = mx + \\dfrac{n}{x + 7} + \\dfrac{p}{x + 10}
+    \\]
+    Sau khi giải hệ phương trình, ta tìm được:
+    \\[
+    m = 4, \\quad n = \\dfrac{158}{3}, \\quad p = \\dfrac{-344}{3}
+    \\]
+    Tính tổng $m + n + p$:
+    \\[
+    m + n + p = \\dfrac{-58}{1} \\approx -58
+    \\]
+    }
+\\end{ex}
+
+\\hetde\\label{\\made}
+\\end{document}`,
+            language: 'latex',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                fontSize: 16,
+                wordWrap: 'on'
+            });
+            attachEventListeners();
+        });
+    }
+
+    // =================================================================
+    // ===               CÁC HÀM XỬ LÝ SỰ KIỆN                   ===
+    // =================================================================
+    function attachEventListeners() {
+        compileBtn.addEventListener('click', compileLatex);
+        editor.addAction({
+            id: 'compile-action', label: 'Compile LaTeX',
+            keybindings: [ monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS ],
+            run: () => compileBtn.click()
+        });
+        
+        snippetBtn.addEventListener('click', () => SnippetManager.show(editor));
+        codeToolsBtn.addEventListener('click', () => CodeTools.showModal(editor));
+        qrToolBtn.addEventListener('click', () => QrAnswerExtractor.showModal(editor));
+        
+        uploadImageBtn.addEventListener('click', () => imageUploader.click());
+        imageUploader.addEventListener('change', handleImageUpload);
+
+        document.querySelectorAll('.helper-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                if (!editor) return;
+                const textToInsert = button.dataset.insert.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+                editor.getContribution('snippetController2').insert(textToInsert);
+                editor.focus();
+            });
+        });
+
+        let isResizing = false;
+        resizer.addEventListener('mousedown', () => isResizing = true);
+        document.addEventListener('mouseup', () => isResizing = false);
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const containerRect = resizer.parentElement.getBoundingClientRect();
+            const newEditorWidth = e.clientX - containerRect.left;
+            if (newEditorWidth > 200 && (containerRect.width - newEditorWidth) > 200) {
+                editorPane.style.flex = `0 0 ${newEditorWidth}px`;
+            }
+        });
+        
+        const footerPanel = document.getElementById('footer-panel');
+        const footerHandle = document.getElementById('footer-handle');
+        const expandBtnIcon = document.querySelector('#expand-footer-btn i');
+        footerHandle.addEventListener('click', (e) => {
+            if (e.target.closest('button')) return;
+            footerPanel.classList.toggle('expanded');
+            expandBtnIcon.classList.toggle('fa-chevron-up');
+            expandBtnIcon.classList.toggle('fa-chevron-down');
+        });
+    }
+
+    async function handleImageUpload(event) {
+        const file = event.target.files[0];
+        if (!file || !sessionId) {
+            if (!sessionId) Swal.fire('Lỗi Phiên', 'Chưa có phiên làm việc.', 'error');
+            return;
+        }
+
+        Swal.fire({
+            title: 'Đang tải ảnh lên...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        const formData = new FormData();
+        formData.append('image_file', file);
+        formData.append('session_id', sessionId);
+
+        try {
+            const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
+            const result = await response.json();
+            if (response.ok && result.success) {
+                const filename = result.filename;
+                const latexToInsert = `\\begin{figure}[h!]\n\t\\centering\n\t\\includegraphics[width=0.6\\textwidth]{${filename}}\n\t\\caption{...}\n\t\\label{fig:...}\n\\end{figure}\n`;
+                editor.executeEdits('image-uploader', [{ range: editor.getSelection(), text: latexToInsert, forceMoveMarkers: true }]);
+                Swal.fire('Thành công!', `Đã tải lên file: ${filename}.`, 'success');
+                editor.focus();
+            } else {
+                Swal.fire('Lỗi Tải Lên!', result.error || 'Không thể tải ảnh.', 'error');
+            }
+        } catch (error) {
+            Swal.fire('Lỗi Mạng!', 'Lỗi kết nối.', 'error');
+        } finally {
+            imageUploader.value = '';
+        }
+    }
+
+    async function compileLatex() {
+        if (!editor || !sessionId) {
+            if (!sessionId) Swal.fire('Lỗi Phiên', 'Chưa có phiên làm việc.', 'error');
+            return;
+        }
+        
+        compileBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang dịch...';
+        compileBtn.disabled = true;
+        
+        const body = new URLSearchParams();
+        body.append('latex_code', editor.getValue());
+        body.append('session_id', sessionId);
+
+        try {
+            const response = await fetch('/api/compile-latex-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body
+            });
+            pdfPreview.style.display = 'block';
+            errorLogContainer.style.display = 'none';
+            if (response.ok) {
+                const pdfBlob = await response.blob();
+                pdfPreview.src = URL.createObjectURL(pdfBlob);
+            } else {
+                const errorData = await response.json();
+                pdfPreview.style.display = 'none';
+                errorLogContainer.style.display = 'block';
+                errorLogContainer.textContent = errorData.error;
+            }
+        } catch (err) {
+            pdfPreview.style.display = 'none';
+            errorLogContainer.style.display = 'block';
+            errorLogContainer.textContent = 'Lỗi kết nối server.';
+        } finally {
+            compileBtn.innerHTML = '<i class="fas fa-play"></i> Biên dịch';
+            compileBtn.disabled = false;
+        }
+    }
+
+    // --- ĐIỂM KHỞI CHẠY CHÍNH ---
+    await initSession();
+    initializeEditor();
+
+});
+</script>
+
+</body>
+</html>

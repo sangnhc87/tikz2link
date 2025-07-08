@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <title>Soạn Thảo LaTeX IDE (Final)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    
+    <!-- Tải các thư viện CSS từ CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    
+    <!-- Sửa đường dẫn đến file CSS cục bộ -->
+    <link rel="stylesheet" href="./static/style_soanthao.css">
+    <link rel="stylesheet" href="./static/styleV3.css">
+    <link rel="stylesheet" href="./static/styleV4.css">
+</head>
+<body>
+
+<!-- Phần HTML giữ nguyên y hệt -->
+<div class="toolbar">
+    <div class="toolbar-group">
+        <button id="snippet-manager-btn" title="Kho Snippet"><i class="fas fa-book-open"></i> Snippet</button>
+        <button id="code-tools-btn" title="Công cụ xử lý Code"><i class="fas fa-magic"></i> Công cụ</button>
+        <button id="upload-image-btn" title="Tải ảnh lên"><i class="fas fa-image"></i> Tải ảnh</button>
+        <input type="file" id="image-uploader" accept="image/*" style="display: none;">
+        <button id="open-gan-id-btn" title="Gán ID cho câu hỏi"><i class="fas fa-tags"></i> Gán ID</button>
+        <button id="qr-tool-btn" title="Tạo QR Code cho đáp án"><i class="fas fa-qrcode"></i> QR Code</button>
+    </div>
+    <div class="toolbar-group" style="margin-left: auto;">
+        <button id="compile-btn" title="Biên dịch (Ctrl+S)"><i class="fas fa-play"></i> Biên dịch</button>
+    </div>
+</div>
+<div class="main-container">
+    <div class="editor-pane"><div id="monaco-editor"></div></div>
+    <div class="resizer" id="resizer"></div>
+    <div class="pdf-pane">
+        <iframe id="pdf-preview" title="Xem trước PDF"></iframe>
+        <div id="error-log-container" class="error-log" style="display: none;"></div>
+    </div>
+</div>
+<div class="footer-panel" id="footer-panel">
+    <div class="footer-handle" id="footer-handle">
+        <span><i class="fas fa-tools"></i> Công cụ chèn nhanh</span>
+        <button id="expand-footer-btn" title="Mở rộng/Thu gọn"><i class="fas fa-chevron-up"></i></button>
+    </div>
+    <div class="footer-content" id="footer-content">
+        <div class="helper-group"><span class="helper-group-title">Môi trường:</span><button class="helper-btn" data-insert="\begin{itemize}\n\t\item \n\end{itemize}">Itemize</button><button class="helper-btn" data-insert="\begin{enumerate}\n\t\item \n\end{enumerate}">Enumerate</button><button class="helper-btn" data-insert="\begin{figure}[h!]\n\t\centering\n\t\caption{}\n\t\label{fig:}\n\end{figure}">Figure</button><button class="helper-btn" data-insert="\begin{tikzpicture}\n\t\n\end{tikzpicture}">TikZ</button></div>
+        <div class="helper-group"><span class="helper-group-title">Toán học:</span><button class="helper-btn" data-insert="\dfrac{}{}">dfrac</button><button class="helper-btn" data-insert="\sqrt{}">sqrt</button><button class="helper-btn" data-insert="\sum\limits_{}^{}">sum</button><button class="helper-btn" data-insert="\int\limits_{}^{}">int</button></div>
+    </div>
+</div>
+<div class="modal" id="assignIdModal"><!-- Nội dung modal giữ nguyên --></div>
+
+
+<!-- ================= SCRIPT SECTION ================= -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+
+<!-- Sửa đường dẫn đến file JS cục bộ -->
+<script src="./js/ganID.js"></script>
+<script src="./js/snippets.js"></script>
+<script src="./js/code_tools.js"></script>
+<script src="./js/qr_tool.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.34.0/min/vs/loader.js"></script>
+
+<!-- === SCRIPT KHỞI CHẠY CHÍNH (ĐÃ NÂNG CẤP CHO PAGES.DEV) === -->
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    // =================================================================
+    // ===                 CẤU HÌNH QUAN TRỌNG                     ===
+    // =================================================================
+    const BACKEND_URL = 'https://tikz4web.fly.dev'; // <<<=== ĐỊA CHỈ BACKEND CỦA BẠN
+    
+    // =================================================================
+    // ===                 KHAI BÁO BIẾN TOÀN CỤC                   ===
+    // =================================================================
+    let editor;
+    let sessionId = null;
+
+    // =================================================================
+    // ===             HÀM KHỞI TẠO PHIÊN LÀM VIỆC                ===
+    // =================================================================
+    async function initSession() {
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/init-session`, { method: 'POST' });
+            if (!response.ok) throw new Error(`Server response: ${response.statusText}`);
+            const data = await response.json();
+            if (data.success && data.session_id) {
+                sessionId = data.session_id;
+                console.log("Đã khởi tạo phiên làm việc:", sessionId);
+            } else {
+                throw new Error(data.error || 'Không nhận được session_id hợp lệ.');
+            }
+        } catch (error) {
+            console.error("Lỗi khởi tạo phiên:", error);
+            Swal.fire('Lỗi Nghiêm Trọng', 'Không thể kết nối với server backend. Hãy chắc chắn server backend đang chạy và đã cấu hình CORS.', 'error');
+        }
+    }
+
+    // =================================================================
+    // ===             KHỞI TẠO EDITOR VÀ GẮN SỰ KIỆN             ===
+    // =================================================================
+    function initializeEditorAndListeners() {
+        const compileBtn = document.getElementById('compile-btn');
+        const uploadImageBtn = document.getElementById('upload-image-btn');
+        const imageUploader = document.getElementById('image-uploader');
+        
+        require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.34.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            editor = monaco.editor.create(document.getElementById('monaco-editor'), {
+                value: `\\documentclass[a4paper,12pt]{article}
+\\usepackage{graphicx}
+\\title{Soạn thảo trên Cloudflare Pages}
+\\author{Gọi API đến Fly.io}
+\\begin{document}
+\\maketitle
+\\section{Hướng dẫn}
+Trang này được host miễn phí trên Cloudflare Pages.
+Khi bạn nhấn "Biên dịch", nó sẽ gửi yêu cầu đến server trên Fly.io để xử lý.
+\\end{document}`,
+                language: 'latex',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                fontSize: 16,
+                wordWrap: 'on'
+            });
+
+            // Gắn các listener sau khi editor đã sẵn sàng
+            compileBtn.addEventListener('click', compileLatex);
+            uploadImageBtn.addEventListener('click', () => imageUploader.click());
+            imageUploader.addEventListener('change', handleImageUpload);
+            editor.addAction({id: 'compile-action', label: 'Compile LaTeX', keybindings: [ monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS ], run: () => compileBtn.click()});
+            
+            // Gắn listener cho các công cụ khác
+            document.getElementById('snippet-manager-btn').addEventListener('click', () => SnippetManager.show(editor));
+            document.getElementById('code-tools-btn').addEventListener('click', () => CodeTools.showModal(editor));
+            document.getElementById('qr-tool-btn').addEventListener('click', () => QrAnswerExtractor.showModal(editor));
+        });
+    }
+
+    // =================================================================
+    // ===               CÁC HÀM XỬ LÝ SỰ KIỆN                   ===
+    // =================================================================
+    async function handleImageUpload(event) {
+        const file = event.target.files[0];
+        if (!file || !sessionId) {
+            if (!sessionId) Swal.fire('Lỗi Phiên', 'Chưa có phiên làm việc. Vui lòng tải lại trang.', 'error');
+            return;
+        }
+        Swal.fire({ title: 'Đang tải ảnh...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const formData = new FormData();
+        formData.append('image_file', file);
+        formData.append('session_id', sessionId);
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/upload-image`, { method: 'POST', body: formData });
+            const result = await response.json();
+            if (response.ok && result.success) {
+                const filename = result.filename;
+                const latexToInsert = `\\begin{figure}[h!]\n\t\\centering\n\t\\includegraphics[width=0.6\\textwidth]{${filename}}\n\t\\caption{...}\n\t\\label{fig:...}\n\\end{figure}\n`;
+                editor.executeEdits('image-uploader', [{ range: editor.getSelection(), text: latexToInsert, forceMoveMarkers: true }]);
+                Swal.fire('Thành công!', `Đã tải lên file: ${filename}.`, 'success');
+                editor.focus();
+            } else {
+                Swal.fire('Lỗi Tải Lên!', result.error || 'Không thể tải ảnh.', 'error');
+            }
+        } catch (error) {
+            Swal.fire('Lỗi Mạng!', 'Lỗi kết nối đến backend.', 'error');
+        } finally {
+            imageUploader.value = '';
+        }
+    }
+
+    async function compileLatex() {
+        if (!editor || !sessionId) {
+            if (!sessionId) Swal.fire('Lỗi Phiên', 'Chưa có phiên làm việc. Vui lòng tải lại trang.', 'error');
+            return;
+        }
+        const compileBtn = document.getElementById('compile-btn');
+        compileBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang dịch...';
+        compileBtn.disabled = true;
+        
+        const body = new URLSearchParams();
+        body.append('latex_code', editor.getValue());
+        body.append('session_id', sessionId);
+        
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/compile-latex-pdf`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body
+            });
+            const pdfPreview = document.getElementById('pdf-preview');
+            const errorLogContainer = document.getElementById('error-log-container');
+            pdfPreview.style.display = 'block';
+            errorLogContainer.style.display = 'none';
+            if (response.ok) {
+                const pdfBlob = await response.blob();
+                pdfPreview.src = URL.createObjectURL(pdfBlob);
+            } else {
+                const errorData = await response.json();
+                pdfPreview.style.display = 'none';
+                errorLogContainer.style.display = 'block';
+                errorLogContainer.textContent = errorData.error;
+            }
+        } catch (err) {
+            document.getElementById('error-log-container').textContent = 'Lỗi kết nối đến server backend.';
+            document.getElementById('error-log-container').style.display = 'block';
+        } finally {
+            compileBtn.innerHTML = '<i class="fas fa-play"></i> Biên dịch';
+            compileBtn.disabled = false;
+        }
+    }
+
+    // =================================================================
+    // ===                 ĐIỂM KHỞI CHẠY CHÍNH                    ===
+    // =================================================================
+    await initSession();
+    initializeEditorAndListeners();
+});
+</script>
+
+</body>
+</html>

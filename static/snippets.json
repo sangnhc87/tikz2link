@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Môi trường cơ bản",
+    "type": "folder",
+    "children": [
+      { "name": "Itemize", "type": "snippet", "content": "\\begin{itemize}\n\t\\item ${1:Nội dung}\n\\end{itemize}" },
+      { "name": "Enumerate", "type": "snippet", "content": "\\begin{enumerate}\n\t\\item ${1:Nội dung}\n\\end{enumerate}" },
+      { "name": "Figure", "type": "snippet", "content": "\\begin{figure}[h!]\n\t\\centering\n\t${1:Nội dung}\n\t\\caption{${2:Chú thích}}\n\t\\label{fig:${3:label}}\n\\end{figure}" },
+      { "name": "TikZ", "type": "snippet", "content": "\\begin{tikzpicture}\n\t${0}\n\\end{tikzpicture}" }
+    ]
+  },
+  {
+    "name": "Toán học",
+    "type": "folder",
+    "children": [
+      { "name": "Phân số", "type": "snippet", "content": "\\dfrac{${1:Tử số}}{${2:Mẫu số}}" },
+      { "name": "Hệ phương trình", "type": "snippet", "content": "\\left\\{\\begin{array}{l}\n\t${1} \\\\\n\t${2}\n\\end{array}\\right." }
+    ]
+  }
+]
