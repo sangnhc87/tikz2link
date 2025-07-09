@@ -14,16 +14,26 @@ from io import BytesIO
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
-from flask import Flask, request, render_template, flash, redirect, url_for, jsonify, send_file
-from werkzeug.utils import secure_filename
+from flask import Flask, request, render_template, flash, redirect, url_for, jsonify, send_file, make_response
 
+from werkzeug.utils import secure_filename
+from flask_cors import CORS 
 # =====================================================================
 # === THIẾT LẬP FLASK =================================================
 # =====================================================================
 app = Flask(__name__, template_folder='templates')
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 app.secret_key = 'a_very_long_and_random_secret_key_for_flask_sessions'
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
-
+# === THÊM ĐOẠN CODE MIDDLEWARE NÀY VÀO ===
+@app.after_request
+def add_coop_header(response):
+    """
+    Thêm header Cross-Origin-Opener-Policy để cho phép pop-up của Google.
+    """
+    response.headers['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups'
+    return response
+# ==========================================
 cloudinary.config(
   cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME'),
   api_key = os.environ.get('CLOUDINARY_API_KEY'),
@@ -227,6 +237,42 @@ def classic_convert_code():
         if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
         
 # =====================================================================
+# app.py
+
+# ... (giữ nguyên các import và các route đã có) ...
+
+
+# =================================================================
+# === THÊM ROUTE MỚI ĐỂ XỬ LÝ UPLOAD NHIỀU FILE CÙNG LÚC =========
+# =================================================================
+@app.route('/api/upload-image-batch', methods=['POST'])
+def api_upload_image_batch():
+    """
+    Nhận nhiều file cùng lúc và lưu vào thư mục của phiên.
+    Đây là API được gọi bởi engine mới trước khi biên dịch.
+    """
+    session_id = request.form.get('session_id')
+    if not session_id or session_id not in SESSION_DIRS:
+        return jsonify({"success": False, "error": "Phiên làm việc không hợp lệ."}), 400
+
+    # Nếu không có file nào được gửi lên, vẫn coi là thành công
+    if 'image_file' not in request.files:
+        return jsonify({"success": True, "message": "Không có file phụ nào để tải lên."})
+
+    # Lấy danh sách tất cả các file được gửi với key là 'image_file'
+    files = request.files.getlist('image_file')
+    
+    saved_files = []
+    for file in files:
+        if file and file.filename:
+            filename = secure_filename(file.filename)
+            file.save(os.path.join(SESSION_DIRS[session_id], filename))
+            saved_files.append(filename)
+    
+    print(f"Đã lưu {len(saved_files)} file phụ cho phiên {session_id}: {', '.join(saved_files)}")
+    return jsonify({"success": True, "saved_files": saved_files})
+
+
 # === KHỞI ĐỘNG SERVER =================================================
 # =====================================================================
 if __name__ == '__main__':
