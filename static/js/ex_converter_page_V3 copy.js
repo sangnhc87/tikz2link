@@ -343,58 +343,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fileInputHidden) fileInputHidden.click();
     });
 
-    // if (fileInputHidden) {
-    //     fileInputHidden.addEventListener('change', (event) => {
-    //         const file = event.target.files[0];
-    //         if (!file) return;
-
-    //         const reader = new FileReader();
-    //         reader.onload = (e) => {
-    //             populateQuestionsFromText(e.target.result);
-    //             Swal.fire('Thành công!', `Đã tải lên và tách thành ${questions.length} câu hỏi.`, 'success');
-    //         };
-    //         reader.readAsText(file);
-    //         event.target.value = '';
-    //     });
-    // }
-// ==========================================================
-    // === ĐÂY LÀ CHỖ DUY NHẤT CẦN SỬA TRONG FILE NÀY ===
-    // ==========================================================
     if (fileInputHidden) {
-        fileInputHidden.addEventListener('change', async (event) => { // Thêm async
+        fileInputHidden.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (!file) return;
 
-            // 1. Tải quy tắc
-            let rules = null;
-            try {
-                const response = await fetch('/static/js/replace.json');
-                if (!response.ok) throw new Error('Không tải được file quy tắc');
-                rules = await response.json();
-            } catch (error) {
-                console.error("Lỗi tải replace.json:", error);
-                Swal.fire('Lỗi', 'Không thể tải file quy tắc thay thế. Tệp sẽ được tải mà không tiền xử lý.', 'error');
-            }
-
-            // 2. Đọc file .tex
             const reader = new FileReader();
             reader.onload = (e) => {
-                let content = e.target.result;
-                
-                // 3. Tiền xử lý nếu có quy tắc
-                if (rules) {
-                    console.log("Đang tiền xử lý nội dung file...");
-                    content = TextPreprocessor.process(content, rules);
-                }
-
-                // 4. Gọi hàm gốc với nội dung đã (hoặc chưa) xử lý
-                populateQuestionsFromText(content);
+                populateQuestionsFromText(e.target.result);
                 Swal.fire('Thành công!', `Đã tải lên và tách thành ${questions.length} câu hỏi.`, 'success');
             };
             reader.readAsText(file);
             event.target.value = '';
         });
     }
+
     copyOutputBtn.addEventListener('click', () => {
         if (!converterOutputArea.value.trim()) {
             Swal.fire('Cảnh báo', 'Không có nội dung để sao chép.', 'warning');

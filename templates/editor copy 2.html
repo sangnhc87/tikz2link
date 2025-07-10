@@ -178,93 +178,13 @@
     <!-- Script gốc V3, hãy đảm bảo nội dung của nó được bọc trong DOMContentLoaded -->
     <script defer src="{{ url_for('static', filename='js/ex_converter_page_V3.js') }}"></script>
     <script src="{{ url_for('static', filename='js/text-preprocessor.js') }}"></script>
-    <!-- 3. SCRIPT XỬ LÝ TIKZ (ĐÃ ĐƯỢC SỬA) -->
+    
+    <!-- 2. Tải script "cầu nối" để tích hợp. -->
+    <script src="{{ url_for('static', filename='js/integration.js') }}"></script>
+    <!-- ========================================================== -->
+    <!-- === SCRIPT TÍCH HỢP TIKZ CONVERTER (NÚT RIÊNG) === -->
+    <!-- ========================================================== -->
     <script>
-    (function() {
-        function initializeAdvancedFeatures() {
-            const loadAndProcessBtn = document.getElementById('load-and-process-tikz-btn');
-            if (!loadAndProcessBtn) return;
-            
-            const tikzFileInput = document.createElement('input');
-            tikzFileInput.type = 'file';
-            tikzFileInput.accept = '.tex,.txt';
-            tikzFileInput.style.display = 'none';
-            document.body.appendChild(tikzFileInput);
-
-            const processTexFileWithTikZ = async (fileContent) => {
-                if (!window.app || typeof TextPreprocessor === 'undefined') {
-                    Swal.fire('Lỗi', 'Ứng dụng hoặc bộ tiền xử lý chưa sẵn sàng.', 'error');
-                    return;
-                }
-
-                const processingAlert = Swal.fire({ title: 'Đang chuẩn bị...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                
-                let rules = null;
-                try {
-                    const response = await fetch('/static/js/replace.json');
-                    rules = await response.json();
-                } catch (e) { console.error("Không tải được replace.json", e); }
-                
-                let content = rules ? TextPreprocessor.process(fileContent, rules) : fileContent;
-                if(rules) console.log("Tiền xử lý TikZ file đã hoàn tất.");
-
-                try {
-                    processingAlert.update({ text: 'Đang phân tích TikZ...' });
-                    const tikzRegex = /\\begin{tikzpicture}[\s\S]*?\\end{tikzpicture}/g;
-                    const tikzBlocks = content.match(tikzRegex);
-
-                    if (!tikzBlocks) {
-                        processingAlert.close();
-                        window.app.populateQuestionsFromText(content);
-                        Swal.fire('Đã tải tệp', 'Không tìm thấy hình TikZ.', 'info');
-                        return;
-                    }
-
-                    processingAlert.update({ title: `Tìm thấy ${tikzBlocks.length} hình TikZ`, text: 'Đang chuyển đổi...' });
-                    const tikzOnlyText = tikzBlocks.join('\n\n');
-                    const tempFile = new File([tikzOnlyText], "temp_tikz_batch.tex", { type: "text/plain" });
-                    const formData = new FormData();
-                    formData.append('file', tempFile);
-                    const response = await fetch("{{ url_for('process_tex_file') }}", { method: 'POST', body: formData });
-                    const data = await response.json();
-                    if (!response.ok || !data.success) throw new Error(data.error || 'Lỗi server.');
-                    
-                    processingAlert.update({ text: 'Đang thay thế ảnh...' });
-                    let updatedContent = content;
-                    data.images.forEach((image, index) => {
-                        if (tikzBlocks[index]) {
-                            const urlParts = image.secure_url.split('/upload/');
-                            const transformedUrl = `${urlParts[0]}/upload/q_auto,f_auto,h_250/${urlParts[1]}`;
-                            const replacementTag = `<img src='${transformedUrl}' alt='${image.original_filename}' class="img-center">`;
-                            updatedContent = updatedContent.replace(tikzBlocks[index], replacementTag);
-                        }
-                    });
-
-                    window.app.populateQuestionsFromText(updatedContent);
-                    processingAlert.close();
-                    Swal.fire({ icon: 'success', title: 'Thành công!', html: `Đã xử lý <b>${data.images.length}</b> hình TikZ.` });
-                } catch (error) {
-                    processingAlert.close();
-                    Swal.fire({ icon: 'error', title: 'Xử lý TikZ thất bại', text: error.message });
-                    window.app.populateQuestionsFromText(content);
-                }
-            };
-
-            loadAndProcessBtn.addEventListener('click', () => tikzFileInput.click());
-            tikzFileInput.addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => processTexFileWithTikZ(e.target.result);
-                    reader.readAsText(file);
-                }
-                event.target.value = null;
-            });
-        }
-        window.addEventListener('load', initializeAdvancedFeatures);
-    })();
-    </script>
-    <!-- <script>
     (function() {
         // Hàm chính để thiết lập chức năng nâng cao
         function initializeAdvancedFeatures() {
@@ -400,6 +320,6 @@
         // Chạy sau khi toàn bộ trang đã tải xong để đảm bảo an toàn
         window.addEventListener('load', initializeAdvancedFeatures);
     })();
-    </script> -->
+    </script>
 </body>
 </html>
